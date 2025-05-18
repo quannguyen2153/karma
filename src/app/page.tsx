@@ -44,9 +44,35 @@ export default function Home() {
   const [touchCount, setTouchCount] = useState(0);
   const [touchLimit, setTouchLimit] = useState(0);
 
+  const strikeSoundURLRef = useRef<string | null>(null);
+  const deathSoundURLRef = useRef<string | null>(null);
+  const ouchSoundURLRef = useRef<string | null>(null);
+
   useEffect(() => {
     const limit = Math.floor(Math.random() * 35) + 15; // Random number between 15-49
     setTouchLimit(limit);
+
+    const preloadSound = async (
+      path: string,
+      ref: React.RefObject<string | null>
+    ) => {
+      const response = await fetch(path);
+      const blob = await response.blob();
+      ref.current = URL.createObjectURL(blob);
+    };
+
+    preloadSound("./sfx/strike.mp3", strikeSoundURLRef);
+    preloadSound("./sfx/death.mp3", deathSoundURLRef);
+    preloadSound("./sfx/ouch.mp3", ouchSoundURLRef);
+
+    // Clean up blob URLs when component unmounts
+    return () => {
+      if (strikeSoundURLRef.current)
+        URL.revokeObjectURL(strikeSoundURLRef.current);
+      if (deathSoundURLRef.current)
+        URL.revokeObjectURL(deathSoundURLRef.current);
+      if (ouchSoundURLRef.current) URL.revokeObjectURL(ouchSoundURLRef.current);
+    };
   }, []);
 
   // Movement loop
@@ -107,6 +133,13 @@ export default function Home() {
     };
   }, [isMoving, direction, autoMove, isDead]);
 
+  const playSound = (url: string | null, volume = 1.0) => {
+    if (!url) return;
+    const audio = new Audio(url);
+    audio.volume = volume;
+    audio.play();
+  };
+
   const handleCloudClick = (
     e: React.MouseEvent<SVGPathElement, MouseEvent>
   ) => {
@@ -120,9 +153,7 @@ export default function Home() {
     const path = generateLightningPath(startX, startY, endX, endY);
     const id = lightningIdRef.current++;
 
-    const strikeSound = new Audio("./sfx/strike.mp3");
-    strikeSound.volume = 0.5;
-    strikeSound.play();
+    playSound(strikeSoundURLRef.current, 0.5);
 
     setLightnings((prev) => [...prev, { id, path }]);
 
@@ -131,7 +162,7 @@ export default function Home() {
     }, 300);
 
     if (Math.abs(endX - stickmanPosition.x) < 50) {
-      new Audio("./sfx/death.mp3").play();
+      playSound(deathSoundURLRef.current, 1.0);
       setIsDead(true);
       setIsMoving(false);
       setDirection("front");
@@ -284,7 +315,7 @@ export default function Home() {
                 setTouchCount(newTouchCount);
 
                 if (newTouchCount >= touchLimit) {
-                  new Audio("./sfx/death.mp3").play();
+                  playSound(deathSoundURLRef.current, 1.0);
                   setIsDead(true);
                   setIsMoving(false);
                   setDirection("front");
@@ -299,9 +330,7 @@ export default function Home() {
                   return;
                 }
 
-                const ouch = new Audio("./sfx/ouch.mp3");
-                ouch.volume = 0.3;
-                ouch.play();
+                playSound(ouchSoundURLRef.current, 0.3);
 
                 const newDirection =
                   direction === "left"
