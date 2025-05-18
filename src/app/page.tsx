@@ -34,6 +34,9 @@ export default function Home() {
   const [playerName, setPlayerName] = useState("");
   const [nameSubmitted, setNameSubmitted] = useState(false);
 
+  const [strikeCount, setStrikeCount] = useState(0);
+  const [showDeathDialog, setShowDeathDialog] = useState(false);
+
   // Movement loop
   useEffect(() => {
     const moveSpeed = 4;
@@ -82,7 +85,7 @@ export default function Home() {
   const handleCloudClick = (
     e: React.MouseEvent<SVGPathElement, MouseEvent>
   ) => {
-    if (!nameSubmitted) return; // Don't allow gameplay until name is entered
+    if (!nameSubmitted || isDead) return; // Don't allow gameplay until name is entered
 
     const startX = e.clientX;
     const startY = e.clientY;
@@ -102,8 +105,14 @@ export default function Home() {
       setIsDead(true);
       setIsMoving(false);
       setDirection("front");
+
+      setTimeout(() => {
+        setShowDeathDialog(true);
+      }, 3000);
       return;
     }
+
+    setStrikeCount((prev) => prev + 1);
 
     if (endX < stickmanPosition.x) {
       setDirection("right");
@@ -112,6 +121,16 @@ export default function Home() {
     }
 
     setIsMoving(true);
+  };
+
+  const handleRetry = () => {
+    setIsDead(false);
+    setShowDeathDialog(false);
+    setStrikeCount(0);
+    setStickmanPosition({ x: window.innerWidth / 2 - 50, y: 10 });
+    setDirection("front");
+    setNameSubmitted(false);
+    setPlayerName("");
   };
 
   return (
@@ -131,20 +150,36 @@ export default function Home() {
             top: "30%",
             left: "50%",
             transform: "translate(-50%, -30%)",
-            background: "#ffffff",
+            background: "#222",
             padding: "2rem",
             borderRadius: "1rem",
-            zIndex: 10,
+            zIndex: 20,
+            color: "white",
             textAlign: "center",
+            boxShadow: "0 0 10px red",
           }}
         >
-          <h2>WHO MESSED UP THIS TIME?</h2>
+          <h2 style={{ color: "red", marginBottom: "1rem" }}>
+            WHO MESSED UP THIS TIME?
+          </h2>
+          <p style={{ fontStyle: "italic", marginBottom: "1rem" }}>
+            Identify the foolish soul responsible:
+          </p>
           <input
             type="text"
             value={playerName}
             onChange={(e) => setPlayerName(e.target.value)}
             placeholder="Pathetic culprit's name"
-            style={{ marginTop: "1rem", padding: "0.5rem", width: "80%" }}
+            style={{
+              marginTop: "0.5rem",
+              padding: "0.5rem",
+              width: "80%",
+              background: "#111",
+              border: "1px solid #555",
+              color: "#fff",
+              borderRadius: "0.5rem",
+              textAlign: "center",
+            }}
           />
           <button
             onClick={() => {
@@ -154,7 +189,7 @@ export default function Home() {
             style={{
               marginTop: "1rem",
               padding: "0.5rem 1rem",
-              backgroundColor: "#333",
+              backgroundColor: "#444",
               color: "#fff",
               border: "none",
               borderRadius: "0.5rem",
@@ -197,6 +232,52 @@ export default function Home() {
           }}
         >
           {playerName}
+        </div>
+      )}
+
+      {showDeathDialog && (
+        <div
+          style={{
+            position: "absolute",
+            top: "30%",
+            left: "50%",
+            transform: "translate(-50%, -30%)",
+            background: "#222",
+            padding: "2rem",
+            borderRadius: "1rem",
+            zIndex: 20,
+            color: "white",
+            textAlign: "center",
+            boxShadow: "0 0 10px red",
+          }}
+        >
+          <h2 style={{ color: "red", marginBottom: "1rem" }}>Judgement Day</h2>
+          <p style={{ fontStyle: "italic", marginBottom: "1rem" }}>
+            {playerName} survived {strikeCount} strike
+            {strikeCount !== 1 ? "s" : ""}.
+          </p>
+          <p style={{ fontWeight: "bold", marginBottom: "1.5rem" }}>
+            {strikeCount === 0
+              ? "One and done. This one's pure evil."
+              : strikeCount < 20
+              ? "Weak. Punishment successful. No mercy for incompetence."
+              : strikeCount < 50
+              ? "Suspiciously durable... maybe not all bad. Still shameful though."
+              : "Unbelievable! How did this being survive that long? You just executed an angel..."}
+          </p>
+          <button
+            onClick={handleRetry}
+            style={{
+              padding: "0.5rem 1.5rem",
+              backgroundColor: "#444",
+              color: "white",
+              border: "none",
+              borderRadius: "0.5rem",
+              cursor: "pointer",
+            }}
+          >
+            Punish another one!
+          </button>
         </div>
       )}
     </div>
