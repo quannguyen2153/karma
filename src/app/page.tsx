@@ -37,9 +37,13 @@ export default function Home() {
   const [strikeCount, setStrikeCount] = useState(0);
   const [showDeathDialog, setShowDeathDialog] = useState(false);
 
+  const idleMovementRef = useRef<NodeJS.Timeout | null>(null);
+  const directionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [autoMove, setAutoMove] = useState(false);
+
   // Movement loop
   useEffect(() => {
-    const moveSpeed = 4;
+    const moveSpeed = autoMove ? 2 : 4;
 
     const animate = () => {
       setStickmanPosition((prev) => {
@@ -51,16 +55,28 @@ export default function Home() {
           newX = Math.min(window.innerWidth - 300, prev.x + moveSpeed);
         }
 
-        if (
-          (direction === "left" && newX <= 300) ||
-          (direction === "right" && newX >= window.innerWidth - 300) ||
-          isDead
-        ) {
+        const atLeftEdge = direction === "left" && newX <= 300;
+        const atRightEdge =
+          direction === "right" && newX >= window.innerWidth - 300;
+
+        if (atLeftEdge || atRightEdge || isDead) {
           setDirection("front");
           setIsMoving(false);
+
+          // Trigger autoMove redirection
+          if (autoMove && !isDead) {
+            setTimeout(() => {
+              const nextDirection = Math.random() > 0.5 ? "left" : "right";
+              setDirection(nextDirection);
+              setIsMoving(true);
+            }, 1000);
+          }
+
           if (animationRef.current !== null) {
             cancelAnimationFrame(animationRef.current);
           }
+
+          return prev;
         }
 
         return { ...prev, x: newX };
@@ -80,7 +96,7 @@ export default function Home() {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isMoving, direction]);
+  }, [isMoving, direction, autoMove, isDead]);
 
   const handleCloudClick = (
     e: React.MouseEvent<SVGPathElement, MouseEvent>
@@ -105,6 +121,10 @@ export default function Home() {
       setIsDead(true);
       setIsMoving(false);
       setDirection("front");
+      setAutoMove(false);
+      if (directionIntervalRef.current)
+        clearInterval(directionIntervalRef.current);
+      if (idleMovementRef.current) clearTimeout(idleMovementRef.current);
 
       setTimeout(() => {
         setShowDeathDialog(true);
@@ -121,6 +141,27 @@ export default function Home() {
     }
 
     setIsMoving(true);
+    setAutoMove(false); // Stop auto movement if triggered
+
+    if (idleMovementRef.current) {
+      clearTimeout(idleMovementRef.current);
+    }
+
+    // Start idle movement after a period
+    idleMovementRef.current = setTimeout(() => {
+      if (!isDead) {
+        setAutoMove(true);
+        setDirection(Math.random() > 0.5 ? "left" : "right");
+        setIsMoving(true);
+
+        // Start random direction changes every 0.8-1.5 seconds
+        directionIntervalRef.current = setInterval(() => {
+          setDirection((prev) =>
+            Math.random() > 0.5 ? (prev === "left" ? "right" : "left") : prev
+          );
+        }, 800 + Math.random() * 700); // 0.8-1.5 second intervals
+      }
+    }, 1000);
   };
 
   const handleRetry = () => {
@@ -131,6 +172,10 @@ export default function Home() {
     setDirection("front");
     setNameSubmitted(false);
     setPlayerName("");
+    setAutoMove(false);
+    if (idleMovementRef.current) clearTimeout(idleMovementRef.current);
+    if (directionIntervalRef.current)
+      clearInterval(directionIntervalRef.current);
   };
 
   return (
