@@ -1,0 +1,64 @@
+@keyframes swingArmLeft {
+  0%,
+  100% {
+    transform: rotate(20deg);
+    transform-origin: 50px 30px;
+  }
+  50% {
+    transform: rotate(-20deg);
+  }
+}
+
+@keyframes swingArmRight {
+  0%,
+  100% {
+    transform: rotate(-20deg);
+    transform-origin: 50px 30px;
+  }
+  50% {
+    transform: rotate(20deg);
+  }
+}
+
+@keyframes runLegLeft {
+  0%,
+  100% {
+    transform: rotate(20deg);
+    transform-origin: 50px 50px;
+  }
+  50% {
+    transform: rotate(-20deg);
+  }
+}
+
+@keyframes runLegRight {
+  0%,
+  100% {
+    transform: rotate(-20deg);
+    transform-origin: 50px 50px;
+  }
+  50% {
+    transform: rotate(20deg);
+  }
+}
+
+.arm.left {
+  animation: swingArmLeft 0.6s infinite ease-in-out;
+}
+
+.arm.right {
+  animation: swingArmRight 0.6s infinite ease-in-out;
+}
+
+.leg.left {
+  animation: runLegLeft 0.6s infinite ease-in-out;
+}
+
+.leg.right {
+  animation: runLegRight 0.6s infinite ease-in-out;
+}
+
+.dead line,
+.dead circle {
+  animation: none !important;
+}

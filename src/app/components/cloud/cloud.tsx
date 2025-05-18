@@ -89,7 +89,7 @@ const Cloud: React.FC<CloudProps> = ({ onClick, animationDurationInMs }) => {
     >
       <path
         d={path}
-        fill="white"
+        fill="lightgray"
         stroke="lightgray"
         strokeWidth="2"
         opacity="0.95"
