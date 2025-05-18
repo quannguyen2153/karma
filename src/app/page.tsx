@@ -47,17 +47,18 @@ export default function Home() {
 
     const animate = () => {
       setStickmanPosition((prev) => {
+        const offset = window.innerWidth > window.innerHeight ? 300 : 100;
         let newX = prev.x;
 
         if (direction === "left") {
-          newX = Math.max(300, prev.x - moveSpeed);
+          newX = Math.max(offset, prev.x - moveSpeed);
         } else if (direction === "right") {
-          newX = Math.min(window.innerWidth - 300, prev.x + moveSpeed);
+          newX = Math.min(window.innerWidth - offset, prev.x + moveSpeed);
         }
 
-        const atLeftEdge = direction === "left" && newX <= 300;
+        const atLeftEdge = direction === "left" && newX <= offset;
         const atRightEdge =
-          direction === "right" && newX >= window.innerWidth - 300;
+          direction === "right" && newX >= window.innerWidth - offset;
 
         if (atLeftEdge || atRightEdge || isDead) {
           setDirection("front");
@@ -128,7 +129,7 @@ export default function Home() {
 
       setTimeout(() => {
         setShowDeathDialog(true);
-      }, 3000);
+      }, 1500);
       return;
     }
 
@@ -214,7 +215,7 @@ export default function Home() {
             type="text"
             value={playerName}
             onChange={(e) => setPlayerName(e.target.value)}
-            placeholder="Pathetic culprit's name"
+            placeholder="name here"
             style={{
               marginTop: "0.5rem",
               padding: "0.5rem",
@@ -228,6 +229,11 @@ export default function Home() {
           />
           <button
             onClick={() => {
+              if (!playerName.trim()) {
+                setPlayerName("You");
+              } else {
+                setPlayerName(playerName.trim());
+              }
               setNameSubmitted(true);
               setStickmanPosition({ x: window.innerWidth / 2 - 50, y: 10 });
             }}
@@ -240,7 +246,6 @@ export default function Home() {
               borderRadius: "0.5rem",
               cursor: "pointer",
             }}
-            disabled={!playerName.trim()}
           >
             Punish
           </button>
@@ -296,7 +301,7 @@ export default function Home() {
             boxShadow: "0 0 10px red",
           }}
         >
-          <h2 style={{ color: "red", marginBottom: "1rem" }}>Judgement Day</h2>
+          <h2 style={{ color: "red", marginBottom: "1rem" }}>Judgement</h2>
           <p style={{ fontStyle: "italic", marginBottom: "1rem" }}>
             {playerName} survived {strikeCount} strike
             {strikeCount !== 1 ? "s" : ""}.
@@ -305,9 +310,9 @@ export default function Home() {
             {strikeCount === 0
               ? "One and done. This one's pure evil."
               : strikeCount < 20
-              ? "Weak. Punishment successful. No mercy for incompetence."
+              ? "No mercy for incompetence."
               : strikeCount < 50
-              ? "Suspiciously durable... maybe not all bad. Still shameful though."
+              ? "Suspiciously durable... maybe not all bad."
               : "Unbelievable! How did this being survive that long? You just executed an angel..."}
           </p>
           <button
@@ -321,7 +326,7 @@ export default function Home() {
               cursor: "pointer",
             }}
           >
-            Punish another one!
+            Punish another one
           </button>
         </div>
       )}

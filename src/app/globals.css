@@ -28,11 +28,8 @@ a {
   text-decoration: none;
 }
 
-@keyframes fadeOut {
-  0% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
+svg path {
+  -webkit-tap-highlight-color: transparent; /* Disable highlight on iOS/Android */
+  -webkit-user-select: none; /* Prevent selection */
+  user-select: none;
 }

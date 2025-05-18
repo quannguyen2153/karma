@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 
 const generateCloudPath = (width: number, height: number): string => {
   const baseY = 0;
-  const bumps = 8 + Math.floor(Math.random() * 4); // 8–11 bumps
+  const bumps = window.innerWidth > window.innerHeight ? 8 + Math.floor(Math.random() * 4) : 3 + Math.floor(Math.random() * 4); // 8–11 | 3-6 bumps
 
   // Generate random step widths and normalize them to total width
   const randomSteps: number[] = [];

@@ -1,7 +1,7 @@
-// components/LightningEffect.tsx
 "use client";
 
 import React from "react";
+import "./lightning.css";
 
 interface Lightning {
   id: number;
