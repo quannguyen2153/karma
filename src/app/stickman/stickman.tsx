@@ -8,13 +8,21 @@ interface StickManProps {
   y: number;
   direction: "front" | "left" | "right";
   isDead: boolean;
+  onClick?: () => void;
 }
 
-const StickMan: React.FC<StickManProps> = ({ x, y, direction, isDead }) => {
+const StickMan: React.FC<StickManProps> = ({
+  x,
+  y,
+  direction,
+  isDead,
+  onClick,
+}) => {
   const color = isDead ? "#888" : "white";
 
   return (
     <svg
+      onClick={onClick}
       viewBox="0 0 100 100"
       width={100}
       height={100}

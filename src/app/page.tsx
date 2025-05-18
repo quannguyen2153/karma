@@ -41,6 +41,14 @@ export default function Home() {
   const directionIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [autoMove, setAutoMove] = useState(false);
 
+  const [touchCount, setTouchCount] = useState(0);
+  const [touchLimit, setTouchLimit] = useState(0);
+
+  useEffect(() => {
+    const limit = Math.floor(Math.random() * 35) + 15; // Random number between 15-49
+    setTouchLimit(limit);
+  }, []);
+
   // Movement loop
   useEffect(() => {
     const moveSpeed = autoMove ? 2 : 4;
@@ -112,6 +120,10 @@ export default function Home() {
     const path = generateLightningPath(startX, startY, endX, endY);
     const id = lightningIdRef.current++;
 
+    const strikeSound = new Audio("/sfx/strike.mp3");
+    strikeSound.volume = 0.5;
+    strikeSound.play();
+
     setLightnings((prev) => [...prev, { id, path }]);
 
     setTimeout(() => {
@@ -119,6 +131,7 @@ export default function Home() {
     }, 300);
 
     if (Math.abs(endX - stickmanPosition.x) < 50) {
+      new Audio("/sfx/death.mp3").play();
       setIsDead(true);
       setIsMoving(false);
       setDirection("front");
@@ -147,6 +160,8 @@ export default function Home() {
     if (idleMovementRef.current) {
       clearTimeout(idleMovementRef.current);
     }
+    if (directionIntervalRef.current)
+      clearInterval(directionIntervalRef.current);
 
     // Start idle movement after a period
     idleMovementRef.current = setTimeout(() => {
@@ -169,6 +184,8 @@ export default function Home() {
     setIsDead(false);
     setShowDeathDialog(false);
     setStrikeCount(0);
+    setTouchCount(0);
+    setTouchLimit(Math.floor(Math.random() * 35) + 15); // reset touch limit
     setStickmanPosition({ x: window.innerWidth / 2 - 50, y: 10 });
     setDirection("front");
     setNameSubmitted(false);
@@ -261,6 +278,68 @@ export default function Home() {
             y={stickmanPosition.y}
             direction={direction}
             isDead={isDead}
+            onClick={() => {
+              if (!isDead) {
+                const newTouchCount = touchCount + 1;
+                setTouchCount(newTouchCount);
+
+                if (newTouchCount >= touchLimit) {
+                  new Audio("/sfx/death.mp3").play();
+                  setIsDead(true);
+                  setIsMoving(false);
+                  setDirection("front");
+                  setAutoMove(false);
+                  if (directionIntervalRef.current)
+                    clearInterval(directionIntervalRef.current);
+                  if (idleMovementRef.current)
+                    clearTimeout(idleMovementRef.current);
+                  setTimeout(() => {
+                    setShowDeathDialog(true);
+                  }, 1500);
+                  return;
+                }
+
+                const ouch = new Audio("/sfx/ouch.mp3");
+                ouch.volume = 0.3;
+                ouch.play();
+
+                const newDirection =
+                  direction === "left"
+                    ? "right"
+                    : direction === "right"
+                    ? "left"
+                    : Math.random() > 0.5
+                    ? "left"
+                    : "right";
+
+                setDirection(newDirection);
+                setIsMoving(true);
+                setAutoMove(false);
+
+                if (idleMovementRef.current)
+                  clearTimeout(idleMovementRef.current);
+                if (directionIntervalRef.current)
+                  clearInterval(directionIntervalRef.current);
+
+                idleMovementRef.current = setTimeout(() => {
+                  if (!isDead) {
+                    setAutoMove(true);
+                    setDirection(Math.random() > 0.5 ? "left" : "right");
+                    setIsMoving(true);
+
+                    directionIntervalRef.current = setInterval(() => {
+                      setDirection((prev) =>
+                        Math.random() > 0.5
+                          ? prev === "left"
+                            ? "right"
+                            : "left"
+                          : prev
+                      );
+                    }, 800 + Math.random() * 700);
+                  }
+                }, 1000);
+              }
+            }}
           />
         </>
       )}
@@ -301,13 +380,22 @@ export default function Home() {
             boxShadow: "0 0 10px red",
           }}
         >
-          <h2 style={{ color: "red", marginBottom: "1rem" }}>Judgement</h2>
+          <h2 style={{ color: "red", marginBottom: "1rem" }}>
+            {touchCount >= touchLimit ? "???" : "Judgement"}
+          </h2>
           <p style={{ fontStyle: "italic", marginBottom: "1rem" }}>
-            {playerName} survived {strikeCount} strike
-            {strikeCount !== 1 ? "s" : ""}.
+            {touchCount >= touchLimit
+              ? `${playerName} survived ${touchCount} touch${
+                  touchCount !== 1 ? "es" : ""
+                }.`
+              : `${playerName} survived ${strikeCount} strike${
+                  strikeCount !== 1 ? "s" : ""
+                }.`}
           </p>
           <p style={{ fontWeight: "bold", marginBottom: "1.5rem" }}>
-            {strikeCount === 0
+            {touchCount >= touchLimit
+              ? "..."
+              : strikeCount === 0
               ? "One and done. This one's pure evil."
               : strikeCount < 20
               ? "No mercy for incompetence."
@@ -326,7 +414,9 @@ export default function Home() {
               cursor: "pointer",
             }}
           >
-            Punish another one
+            {touchCount >= touchLimit
+              ? "Touch another one"
+              : "Punish another one"}
           </button>
         </div>
       )}
