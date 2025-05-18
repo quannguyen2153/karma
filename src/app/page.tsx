@@ -75,6 +75,32 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!nameSubmitted) return;
+
+    const observer = new MutationObserver(() => {
+      const nameElements = document.querySelectorAll("[data-player-name]");
+      nameElements.forEach((el) => {
+        const name = el.textContent
+          ?.toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "");
+        if (name?.includes("quan")) {
+          el.textContent = "lil h4ck3r";
+          setPlayerName("lil h4ck3r");
+        }
+      });
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    return () => observer.disconnect();
+  }, [nameSubmitted]);
+
   // Movement loop
   useEffect(() => {
     const moveSpeed = autoMove ? 2 : 4;
@@ -227,6 +253,13 @@ export default function Home() {
       clearInterval(directionIntervalRef.current);
   };
 
+  const normalizedName = playerName
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const isQuan = normalizedName.includes("quan");
+
   return (
     <div
       style={{
@@ -275,28 +308,33 @@ export default function Home() {
               textAlign: "center",
             }}
           />
-          <button
-            onClick={() => {
-              if (!playerName.trim()) {
-                setPlayerName("You");
-              } else {
-                setPlayerName(playerName.trim());
-              }
-              setNameSubmitted(true);
-              setStickmanPosition({ x: window.innerWidth / 2 - 50, y: 10 });
-            }}
-            style={{
-              marginTop: "1rem",
-              padding: "0.5rem 1rem",
-              backgroundColor: "#444",
-              color: "#fff",
-              border: "none",
-              borderRadius: "0.5rem",
-              cursor: "pointer",
-            }}
-          >
-            Punish
-          </button>
+          <div style={{ position: "relative", display: "inline-block" }}>
+            <button
+              onClick={() => {
+                if (!playerName.trim()) {
+                  setPlayerName("You");
+                } else {
+                  setPlayerName(playerName.trim());
+                }
+                setNameSubmitted(true);
+                setStickmanPosition({ x: window.innerWidth / 2 - 50, y: 10 });
+              }}
+              disabled={isQuan}
+              style={{
+                marginTop: "1rem",
+                padding: "0.5rem 1rem",
+                backgroundColor: isQuan ? "#333" : "#444",
+                color: "#fff",
+                border: "none",
+                borderRadius: "0.5rem",
+                cursor: isQuan ? "not-allowed" : "pointer",
+                opacity: isQuan ? 0.6 : 1,
+                position: "relative",
+              }}
+            >
+              {isQuan ? "Wrong Name" : "Punish"}
+            </button>
+          </div>
         </div>
       )}
 
@@ -376,6 +414,7 @@ export default function Home() {
       {/* Show player name below the stickman */}
       {nameSubmitted && (
         <div
+          data-player-name
           style={{
             position: "absolute",
             bottom: stickmanPosition.y - 5,
@@ -412,7 +451,10 @@ export default function Home() {
           <h2 style={{ color: "red", marginBottom: "1rem" }}>
             {touchCount >= touchLimit ? "???" : "Judgement"}
           </h2>
-          <p style={{ fontStyle: "italic", marginBottom: "1rem" }}>
+          <p
+            data-player-name
+            style={{ fontStyle: "italic", marginBottom: "1rem" }}
+          >
             {touchCount >= touchLimit
               ? `${playerName} survived ${touchCount} touch${
                   touchCount !== 1 ? "es" : ""
@@ -430,7 +472,7 @@ export default function Home() {
               ? "No mercy for incompetence."
               : strikeCount < 50
               ? "Suspiciously durable... maybe not all bad."
-              : "Unbelievable! How did this being survive that long? You just executed an angel..."}
+              : "Unbelievable! How did this being survive that long? Perhaps you just executed an angel..."}
           </p>
           <button
             onClick={handleRetry}
