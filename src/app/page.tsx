@@ -120,7 +120,7 @@ export default function Home() {
     const path = generateLightningPath(startX, startY, endX, endY);
     const id = lightningIdRef.current++;
 
-    const strikeSound = new Audio("/sfx/strike.mp3");
+    const strikeSound = new Audio("./sfx/strike.mp3");
     strikeSound.volume = 0.5;
     strikeSound.play();
 
@@ -131,7 +131,7 @@ export default function Home() {
     }, 300);
 
     if (Math.abs(endX - stickmanPosition.x) < 50) {
-      new Audio("/sfx/death.mp3").play();
+      new Audio("./sfx/death.mp3").play();
       setIsDead(true);
       setIsMoving(false);
       setDirection("front");
@@ -284,7 +284,7 @@ export default function Home() {
                 setTouchCount(newTouchCount);
 
                 if (newTouchCount >= touchLimit) {
-                  new Audio("/sfx/death.mp3").play();
+                  new Audio("./sfx/death.mp3").play();
                   setIsDead(true);
                   setIsMoving(false);
                   setDirection("front");
@@ -299,7 +299,7 @@ export default function Home() {
                   return;
                 }
 
-                const ouch = new Audio("/sfx/ouch.mp3");
+                const ouch = new Audio("./sfx/ouch.mp3");
                 ouch.volume = 0.3;
                 ouch.play();
 
