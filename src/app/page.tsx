@@ -173,7 +173,8 @@ export default function Home() {
 
     const startX = e.clientX;
     const startY = e.clientY;
-    const endX = e.ctrlKey ? startX : Math.random() * window.innerWidth;
+    const endX =
+      e.ctrlKey || e.metaKey ? startX : Math.random() * window.innerWidth;
     const endY = window.innerHeight;
 
     const path = generateLightningPath(startX, startY, endX, endY);
@@ -373,7 +374,7 @@ export default function Home() {
                   return;
                 }
 
-                playSound(ouchSoundURLRef.current, 0.3);
+                playSound(ouchSoundURLRef.current, 0.5);
 
                 const newDirection =
                   direction === "left"
