@@ -179,6 +179,8 @@ export default function Home() {
     const path = generateLightningPath(startX, startY, endX, endY);
     const id = lightningIdRef.current++;
 
+    const hitboxSize = window.innerWidth > window.innerHeight ? 50 : 30;
+
     playSound(strikeSoundURLRef.current, 0.5);
 
     setLightnings((prev) => [...prev, { id, path }]);
@@ -187,7 +189,7 @@ export default function Home() {
       setLightnings((prev) => prev.filter((l) => l.id !== id));
     }, 300);
 
-    if (Math.abs(endX - stickmanPosition.x) < 50) {
+    if (Math.abs(endX - stickmanPosition.x) < hitboxSize) {
       playSound(deathSoundURLRef.current, 1.0);
       setIsDead(true);
       setIsMoving(false);
@@ -243,7 +245,7 @@ export default function Home() {
     setStrikeCount(0);
     setTouchCount(0);
     setTouchLimit(Math.floor(Math.random() * 35) + 15); // reset touch limit
-    setStickmanPosition({ x: window.innerWidth / 2 - 50, y: 10 });
+    setStickmanPosition({ x: Math.floor(window.innerWidth / 2), y: 10 });
     setDirection("front");
     setNameSubmitted(false);
     setPlayerName("");
@@ -317,7 +319,10 @@ export default function Home() {
                   setPlayerName(playerName.trim());
                 }
                 setNameSubmitted(true);
-                setStickmanPosition({ x: window.innerWidth / 2 - 50, y: 10 });
+                setStickmanPosition({
+                  x: Math.floor(window.innerWidth / 2),
+                  y: 10,
+                });
               }}
               disabled={isQuan}
               style={{
