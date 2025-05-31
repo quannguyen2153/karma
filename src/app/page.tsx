@@ -106,7 +106,7 @@ export default function Home() {
           .normalize("NFD")
           .replace(/[\u0300-\u036f]/g, "");
         if (
-          wrongNameClickCount < wrongNameClickLimit &&
+          wrongNameClickCount <= wrongNameClickLimit &&
           name?.includes("quan")
         ) {
           el.textContent = "1i1 h4ck3r";
@@ -429,7 +429,7 @@ export default function Home() {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
   const isQuan =
-    wrongNameClickCount < wrongNameClickLimit &&
+    wrongNameClickCount <= wrongNameClickLimit &&
     normalizedName.includes("quan");
 
   return (
@@ -511,7 +511,7 @@ export default function Home() {
                 position: "relative",
               }}
             >
-              {wrongNameClickCount >= wrongNameClickLimit
+              {wrongNameClickCount > wrongNameClickLimit
                 ? "( -_・)?"
                 : isQuan
                 ? "Wrong Name"
@@ -526,7 +526,7 @@ export default function Home() {
           <Cloud onClick={handleCloudClick} animationDurationInMs={100} />
           <LightningEffect
             lightnings={lightnings}
-            color={isStrikeHarmless ? "#C11C84" : "white"}
+            color={isStrikeHarmless ? "white" : "#ff77ff"}
           />
           <StickMan
             x={stickmanPosition.x}
