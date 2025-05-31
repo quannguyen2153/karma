@@ -48,11 +48,22 @@ export default function Home() {
   const [wrongNameClickCount, setWrongNameClickCount] = useState(0);
   const [wrongNameClickLimit, setWrongNameClickLimit] = useState(0);
 
-  const lightStrikeSoundURLRef = useRef<AudioBuffer | null>(null);
-  const strikeSoundURLRef = useRef<AudioBuffer | null>(null);
-  const deathSoundURLRef = useRef<AudioBuffer | null>(null);
-  const ouchSoundURLRef = useRef<AudioBuffer | null>(null);
+  const [displaySheetInput, setDisplaySheetInput] = useState(false);
+  const [sheetContent, setSheetContent] = useState("");
+
+  const isSheetPlayingRef = useRef(false);
+  const sheetAbortControllerRef = useRef<AbortController | null>(null);
+
+  const lightStrikeAudioBufferRef = useRef<AudioBuffer | null>(null);
+  const strikeAudioBufferRef = useRef<AudioBuffer | null>(null);
+  const deathAudioBufferRef = useRef<AudioBuffer | null>(null);
+  const ouchAudioBufferRef = useRef<AudioBuffer | null>(null);
   const sharedAudioContextRef = useRef<AudioContext | null>(null);
+
+  const stickmanPositionRef = useRef(stickmanPosition);
+  const nameSubmittedRef = useRef(nameSubmitted);
+  const isDeadRef = useRef(isDead);
+  const isStrikeHarmlessRef = useRef(isStrikeHarmless);
 
   useEffect(() => {
     setTouchLimit(Math.floor(Math.random() * 35) + 15); // Random number between 15-49
@@ -74,10 +85,10 @@ export default function Home() {
       ref.current = audioBuffer ? audioBuffer : null;
     };
 
-    preloadSound("./sfx/light_strike.mp3", lightStrikeSoundURLRef);
-    preloadSound("./sfx/strike.mp3", strikeSoundURLRef);
-    preloadSound("./sfx/death.mp3", deathSoundURLRef);
-    preloadSound("./sfx/ouch.mp3", ouchSoundURLRef);
+    preloadSound("./sfx/light_strike.mp3", lightStrikeAudioBufferRef);
+    preloadSound("./sfx/strike.mp3", strikeAudioBufferRef);
+    preloadSound("./sfx/death.mp3", deathAudioBufferRef);
+    preloadSound("./sfx/ouch.mp3", ouchAudioBufferRef);
 
     if (sharedAudioContextRef.current.state === "suspended") {
       sharedAudioContextRef.current.resume();
@@ -85,14 +96,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const handleSpacebarPress = (e: KeyboardEvent) => {
+    const handleSpecialKeyDown = (e: KeyboardEvent) => {
       if (!nameSubmitted || e.repeat) return;
       if (e.code === "Space" || e.key === " ") {
         setIsStrikeHarmless((prev) => !prev);
       }
     };
 
-    window.addEventListener("keydown", handleSpacebarPress);
+    window.addEventListener("keydown", handleSpecialKeyDown);
 
     if (!nameSubmitted) return;
 
@@ -122,124 +133,133 @@ export default function Home() {
     });
 
     return () => {
-      window.removeEventListener("keydown", handleSpacebarPress);
+      window.removeEventListener("keydown", handleSpecialKeyDown);
       observer.disconnect();
     };
   }, [nameSubmitted]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!nameSubmitted || isDead) return;
-      if (e.repeat) return; // ignore if holding key
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (!nameSubmittedRef.current || isDeadRef.current) {
+      console.log("Game not started or already dead");
+      return;
+    }
+    if (e.repeat) return; // ignore if holding key
 
-      if (sharedAudioContextRef.current?.state === "suspended") {
-        sharedAudioContextRef.current.resume();
-      }
+    if (sharedAudioContextRef.current?.state === "suspended") {
+      sharedAudioContextRef.current.resume();
+    }
 
-      const topRow = "qwertyuiop";
-      const middleRow = "asdfghjkl";
-      const bottomRow = "zxcvbnm";
+    const topRow = "qwertyuiop";
+    const middleRow = "asdfghjkl";
+    const bottomRow = "zxcvbnm";
 
-      // Determine which row the key belongs to
-      let index = topRow.indexOf(e.key.toLowerCase());
-      let row = "top";
+    // Determine which row the key belongs to
+    let index = topRow.indexOf(e.key.toLowerCase());
+    let row = "top";
 
-      if (index === -1) {
-        index = middleRow.indexOf(e.key.toLowerCase());
-        if (index !== -1) {
-          row = "middle";
-        } else {
-          index = bottomRow.indexOf(e.key.toLowerCase());
-          if (index !== -1) row = "bottom";
-        }
-      }
-
+    if (index === -1) {
+      index = middleRow.indexOf(e.key.toLowerCase());
       if (index !== -1) {
-        const baseKeys =
-          row === "top" ? topRow : row === "middle" ? middleRow : bottomRow;
-        const sectionWidth = window.innerWidth / baseKeys.length;
-        const startX = sectionWidth * index + sectionWidth / 2;
+        row = "middle";
+      } else {
+        index = bottomRow.indexOf(e.key.toLowerCase());
+        if (index !== -1) row = "bottom";
+      }
+    }
 
-        // Set vertical position higher for top row
-        const startY =
-          window.innerHeight *
-          (row === "top" ? 0.02 : row === "middle" ? 0.035 : 0.05);
+    if (index !== -1) {
+      const baseKeys =
+        row === "top" ? topRow : row === "middle" ? middleRow : bottomRow;
+      const sectionWidth = window.innerWidth / baseKeys.length;
+      const startX = sectionWidth * index + sectionWidth / 2;
 
-        const endX = Math.random() * window.innerWidth;
-        const endY = window.innerHeight;
-        const path = generateLightningPath(startX, startY, endX, endY);
-        const id = lightningIdRef.current++;
+      // Set vertical position higher for top row
+      const startY =
+        window.innerHeight *
+        (row === "top" ? 0.02 : row === "middle" ? 0.035 : 0.05);
 
-        const isSharp = e.shiftKey;
+      const endX = Math.random() * window.innerWidth;
+      const endY = window.innerHeight;
+      const path = generateLightningPath(startX, startY, endX, endY);
+      const id = lightningIdRef.current++;
 
-        // Use base offsets to distinguish rows aurally
-        const rowOffset = row === "top" ? 16 : row === "middle" ? 7 : 0;
-        const offset =
-          rowOffset + index * 2 - (index > 2 ? 1 : 0) + (isSharp ? 1 : 0);
+      const isSharp = e.shiftKey;
 
-        playSound(lightStrikeSoundURLRef.current, 0.5, offset);
+      // Use base offsets to distinguish rows aurally
+      const rowOffset = row === "top" ? 16 : row === "middle" ? 7 : 0;
+      const offset =
+        rowOffset + index * 2 - (index > 2 ? 1 : 0) + (isSharp ? 1 : 0);
 
-        setLightnings((prev) => [...prev, { id, path }]);
+      playSound(lightStrikeAudioBufferRef.current, 0.5, offset);
+
+      setLightnings((prev) => [...prev, { id, path }]);
+
+      setTimeout(() => {
+        setLightnings((prev) => prev.filter((l) => l.id !== id));
+      }, 300);
+
+      const hitboxSize = window.innerWidth > window.innerHeight ? 50 : 30;
+
+      if (
+        !isStrikeHarmlessRef.current &&
+        Math.abs(endX - stickmanPositionRef.current.x) < hitboxSize &&
+        !isDeadRef.current
+      ) {
+        playSound(deathAudioBufferRef.current, 1.0);
+        setIsDead(true);
+        setDisplaySheetInput(false);
+        setIsMoving(false);
+        setDirection("front");
+        setAutoMove(false);
+        if (directionIntervalRef.current)
+          clearInterval(directionIntervalRef.current);
+        if (idleMovementRef.current) clearTimeout(idleMovementRef.current);
 
         setTimeout(() => {
-          setLightnings((prev) => prev.filter((l) => l.id !== id));
-        }, 300);
+          setShowDeathDialog(true);
+        }, 1500);
+      } else {
+        setStrikeCount((prev) => prev + 1);
 
-        const hitboxSize = window.innerWidth > window.innerHeight ? 50 : 30;
-
-        if (
-          !isStrikeHarmless &&
-          Math.abs(endX - stickmanPosition.x) < hitboxSize &&
-          !isDead
-        ) {
-          playSound(deathSoundURLRef.current, 1.0);
-          setIsDead(true);
-          setIsMoving(false);
-          setDirection("front");
-          setAutoMove(false);
-          if (directionIntervalRef.current)
-            clearInterval(directionIntervalRef.current);
-          if (idleMovementRef.current) clearTimeout(idleMovementRef.current);
-
-          setTimeout(() => {
-            setShowDeathDialog(true);
-          }, 1500);
+        if (endX < stickmanPositionRef.current.x) {
+          setDirection("right");
         } else {
-          setStrikeCount((prev) => prev + 1);
-
-          if (endX < stickmanPosition.x) {
-            setDirection("right");
-          } else {
-            setDirection("left");
-          }
-
-          setIsMoving(true);
-          setAutoMove(false);
-
-          if (idleMovementRef.current) clearTimeout(idleMovementRef.current);
-          if (directionIntervalRef.current)
-            clearInterval(directionIntervalRef.current);
-
-          idleMovementRef.current = setTimeout(() => {
-            if (!isDead) {
-              setAutoMove(true);
-              setDirection(Math.random() > 0.5 ? "left" : "right");
-              setIsMoving(true);
-
-              directionIntervalRef.current = setInterval(() => {
-                setDirection((prev) =>
-                  Math.random() > 0.5
-                    ? prev === "left"
-                      ? "right"
-                      : "left"
-                    : prev
-                );
-              }, 800 + Math.random() * 700);
-            }
-          }, 1000);
+          setDirection("left");
         }
+
+        setIsMoving(true);
+        setAutoMove(false);
+
+        if (idleMovementRef.current) clearTimeout(idleMovementRef.current);
+        if (directionIntervalRef.current)
+          clearInterval(directionIntervalRef.current);
+
+        idleMovementRef.current = setTimeout(() => {
+          if (!isDeadRef.current) {
+            setAutoMove(true);
+            setDirection(Math.random() > 0.5 ? "left" : "right");
+            setIsMoving(true);
+
+            directionIntervalRef.current = setInterval(() => {
+              setDirection((prev) =>
+                Math.random() > 0.5
+                  ? prev === "left"
+                    ? "right"
+                    : "left"
+                  : prev
+              );
+            }, 800 + Math.random() * 700);
+          }
+        }, 1000);
       }
-    };
+    }
+  };
+
+  useEffect(() => {
+    stickmanPositionRef.current = stickmanPosition;
+    nameSubmittedRef.current = nameSubmitted;
+    isDeadRef.current = isDead;
+    isStrikeHarmlessRef.current = isStrikeHarmless;
 
     window.addEventListener("keydown", handleKeyDown);
 
@@ -247,6 +267,59 @@ export default function Home() {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [stickmanPosition, nameSubmitted, isDead, isStrikeHarmless]);
+
+  const playSheet = async (sheet: string) => {
+    const buffer = lightStrikeAudioBufferRef.current;
+    if (!buffer) return;
+
+    const delayMs = buffer.duration * 1000; // duration is in seconds
+
+    const controller = new AbortController();
+    sheetAbortControllerRef.current = controller;
+
+    isSheetPlayingRef.current = true;
+
+    for (let i = 0; i < sheet.length; i++) {
+      if (controller.signal.aborted) break;
+
+      const char = sheet[i].toLowerCase();
+      if (char === " ") {
+        await new Promise((res) => setTimeout(res, delayMs));
+        continue;
+      }
+
+      const fakeEvent = {
+        key: char,
+        shiftKey: false,
+      } as KeyboardEvent;
+
+      handleKeyDown(fakeEvent);
+      await new Promise((res) => setTimeout(res, delayMs));
+    }
+
+    isSheetPlayingRef.current = false;
+  };
+
+  useEffect(() => {
+    const triggerPlaySheet = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      if (e.key === "Enter") {
+        if (isSheetPlayingRef.current) {
+          // Stop current playback
+          sheetAbortControllerRef.current?.abort();
+          isSheetPlayingRef.current = false;
+        } else {
+          // Start playback
+          playSheet(sheetContent);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", triggerPlaySheet);
+    return () => {
+      window.removeEventListener("keydown", triggerPlaySheet);
+    };
+  }, [sheetContent, stickmanPosition, nameSubmitted, isDead, isStrikeHarmless]);
 
   // Movement loop
   useEffect(() => {
@@ -345,7 +418,7 @@ export default function Home() {
 
     const hitboxSize = window.innerWidth > window.innerHeight ? 50 : 30;
 
-    playSound(strikeSoundURLRef.current, 0.5);
+    playSound(strikeAudioBufferRef.current, 0.5);
 
     setLightnings((prev) => [...prev, { id, path }]);
 
@@ -354,8 +427,9 @@ export default function Home() {
     }, 300);
 
     if (!isStrikeHarmless && Math.abs(endX - stickmanPosition.x) < hitboxSize) {
-      playSound(deathSoundURLRef.current, 1.0);
+      playSound(deathAudioBufferRef.current, 1.0);
       setIsDead(true);
+      setDisplaySheetInput(false);
       setIsMoving(false);
       setDirection("front");
       setAutoMove(false);
@@ -417,9 +491,12 @@ export default function Home() {
     setNameSubmitted(false);
     setPlayerName("");
     setAutoMove(false);
+    setDisplaySheetInput(false);
     if (idleMovementRef.current) clearTimeout(idleMovementRef.current);
     if (directionIntervalRef.current)
       clearInterval(directionIntervalRef.current);
+    sheetAbortControllerRef.current?.abort();
+    isSheetPlayingRef.current = false;
   };
 
   const normalizedName = playerName
@@ -456,10 +533,16 @@ export default function Home() {
             color: "white",
             textAlign: "center",
             boxShadow: "0 0 10px red",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
           }}
         >
-          <h2 style={{ color: "red", marginBottom: "1rem" }}>
-            WHO MESSED UP THIS TIME?
+          <h2
+            onClick={() => setDisplaySheetInput(true)}
+            style={{ color: "red", marginBottom: "1rem" }}
+          >
+            WHO NEED TO BE PUNISHED?
           </h2>
           <p style={{ fontStyle: "italic", marginBottom: "1rem" }}>
             Identify the foolish soul responsible:
@@ -468,7 +551,7 @@ export default function Home() {
             type="text"
             value={playerName}
             onChange={(e) => setPlayerName(e.target.value)}
-            placeholder="name here"
+            placeholder="name..."
             style={{
               marginTop: "0.5rem",
               padding: "0.5rem",
@@ -480,6 +563,25 @@ export default function Home() {
               textAlign: "center",
             }}
           />
+          {displaySheetInput && (
+            <textarea
+              value={sheetContent}
+              onChange={(e) => setSheetContent(e.target.value)}
+              placeholder="punishment sequence..."
+              rows={4}
+              style={{
+                marginTop: "0.5rem",
+                padding: "0.5rem",
+                width: "80%",
+                background: "#111",
+                border: "1px solid #555",
+                color: "#fff",
+                borderRadius: "0.5rem",
+                textAlign: "center",
+                resize: "none",
+              }}
+            />
+          )}
           <div style={{ position: "relative", display: "inline-block" }}>
             <button
               onClick={() => {
@@ -539,8 +641,9 @@ export default function Home() {
                 setTouchCount(newTouchCount);
 
                 if (newTouchCount >= touchLimit) {
-                  playSound(deathSoundURLRef.current, 1.0);
+                  playSound(deathAudioBufferRef.current, 1.0);
                   setIsDead(true);
+                  setDisplaySheetInput(false);
                   setIsMoving(false);
                   setDirection("front");
                   setAutoMove(false);
@@ -554,7 +657,7 @@ export default function Home() {
                   return;
                 }
 
-                playSound(ouchSoundURLRef.current, 0.5);
+                playSound(ouchAudioBufferRef.current, 0.5);
 
                 const newDirection =
                   direction === "left"
