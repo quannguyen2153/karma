@@ -13,6 +13,10 @@ interface Lightning {
   path: string;
 }
 
+const bottomRow = "zxcvbnm";
+const middleRow = "asdfghjkl";
+const topRow = "qwertyuiop";
+
 export default function Home() {
   const [lightnings, setLightnings] = useState<Lightning[]>([]);
   const lightningIdRef = useRef(0);
@@ -60,6 +64,10 @@ export default function Home() {
   const ouchAudioBufferRef = useRef<AudioBuffer | null>(null);
   const sharedAudioContextRef = useRef<AudioContext | null>(null);
 
+  const bottomRowSemitonesRef = useRef<number[]>([]);
+  const middleRowSemitonesRef = useRef<number[]>([]);
+  const topRowSemitonesRef = useRef<number[]>([]);
+
   const stickmanPositionRef = useRef(stickmanPosition);
   const nameSubmittedRef = useRef(nameSubmitted);
   const isDeadRef = useRef(isDead);
@@ -93,6 +101,36 @@ export default function Home() {
     if (sharedAudioContextRef.current.state === "suspended") {
       sharedAudioContextRef.current.resume();
     }
+
+    const scaleIntervals = [0, 2, 4, 5, 7, 9, 11]; // C major scale intervals
+
+    const buildRowSemitones = (
+      startIndex: number,
+      keys: string[]
+    ): number[] => {
+      const semitones: number[] = [];
+      let intervalIndex = startIndex;
+      for (let i = 0; i < keys.length; i++) {
+        const fullOctaveOffset =
+          Math.floor(intervalIndex / scaleIntervals.length) * 12;
+        const interval = scaleIntervals[intervalIndex % scaleIntervals.length];
+        semitones.push(fullOctaveOffset + interval);
+        intervalIndex++;
+      }
+      return semitones;
+    };
+
+    // Build semitone arrays for each row
+    bottomRowSemitonesRef.current = buildRowSemitones(0, bottomRow.split(""));
+    middleRowSemitonesRef.current = buildRowSemitones(
+      bottomRowSemitonesRef.current.length,
+      middleRow.split("")
+    );
+    topRowSemitonesRef.current = buildRowSemitones(
+      bottomRowSemitonesRef.current.length +
+        middleRowSemitonesRef.current.length,
+      topRow.split("")
+    );
   }, []);
 
   useEffect(() => {
@@ -139,119 +177,111 @@ export default function Home() {
   }, [nameSubmitted]);
 
   const handleKeyDown = (e: KeyboardEvent) => {
-    if (!nameSubmittedRef.current || isDeadRef.current) {
-      console.log("Game not started or already dead");
-      return;
-    }
-    if (e.repeat) return; // ignore if holding key
+    if (!nameSubmittedRef.current || isDeadRef.current) return;
+    if (e.repeat) return;
 
     if (sharedAudioContextRef.current?.state === "suspended") {
       sharedAudioContextRef.current.resume();
     }
 
-    const topRow = "qwertyuiop";
-    const middleRow = "asdfghjkl";
-    const bottomRow = "zxcvbnm";
+    const key = e.key.toLowerCase();
+    const isSharp = e.shiftKey;
 
-    // Determine which row the key belongs to
-    let index = topRow.indexOf(e.key.toLowerCase());
-    let row = "top";
+    let index = bottomRow.indexOf(key);
+    let row = "bottom";
+    let offset = -1;
 
-    if (index === -1) {
-      index = middleRow.indexOf(e.key.toLowerCase());
+    if (index !== -1) {
+      offset = bottomRowSemitonesRef.current[index];
+    } else {
+      index = middleRow.indexOf(key);
       if (index !== -1) {
         row = "middle";
+        offset = middleRowSemitonesRef.current[index];
       } else {
-        index = bottomRow.indexOf(e.key.toLowerCase());
-        if (index !== -1) row = "bottom";
+        index = topRow.indexOf(key);
+        if (index !== -1) {
+          row = "top";
+          offset = topRowSemitonesRef.current[index];
+        }
       }
     }
 
-    if (index !== -1) {
-      const baseKeys =
-        row === "top" ? topRow : row === "middle" ? middleRow : bottomRow;
-      const sectionWidth = window.innerWidth / baseKeys.length;
-      const startX = sectionWidth * index + sectionWidth / 2;
+    if (offset === -1) return;
+    if (isSharp) offset += 1;
 
-      // Set vertical position higher for top row
-      const startY =
-        window.innerHeight *
-        (row === "top" ? 0.02 : row === "middle" ? 0.035 : 0.05);
+    const baseKeys =
+      row === "bottom" ? bottomRow : row === "middle" ? middleRow : topRow;
+    const sectionWidth = window.innerWidth / baseKeys.length;
+    const startX = sectionWidth * index + sectionWidth / 2;
+    const startY =
+      window.innerHeight *
+      (row === "top" ? 0.02 : row === "middle" ? 0.035 : 0.05);
 
-      const endX = Math.random() * window.innerWidth;
-      const endY = window.innerHeight;
-      const path = generateLightningPath(startX, startY, endX, endY);
-      const id = lightningIdRef.current++;
+    const endX = Math.random() * window.innerWidth;
+    const endY = window.innerHeight;
 
-      const isSharp = e.shiftKey;
+    const path = generateLightningPath(startX, startY, endX, endY);
+    const id = lightningIdRef.current++;
 
-      // Use base offsets to distinguish rows aurally
-      const rowOffset = row === "top" ? 16 : row === "middle" ? 7 : 0;
-      const offset =
-        rowOffset + index * 2 - (index > 2 ? 1 : 0) + (isSharp ? 1 : 0);
+    // Convert absolute semitone into relative offset from base note
+    playSound(lightStrikeAudioBufferRef.current, 0.5, offset);
 
-      playSound(lightStrikeAudioBufferRef.current, 0.5, offset);
+    setLightnings((prev) => [...prev, { id, path }]);
 
-      setLightnings((prev) => [...prev, { id, path }]);
+    setTimeout(() => {
+      setLightnings((prev) => prev.filter((l) => l.id !== id));
+    }, 300);
+
+    const hitboxSize = window.innerWidth > window.innerHeight ? 50 : 30;
+
+    if (
+      !isStrikeHarmlessRef.current &&
+      Math.abs(endX - stickmanPositionRef.current.x) < hitboxSize &&
+      !isDeadRef.current
+    ) {
+      playSound(deathAudioBufferRef.current, 1.0);
+      setIsDead(true);
+      setDisplaySheetInput(false);
+      setIsMoving(false);
+      setDirection("front");
+      setAutoMove(false);
+      if (directionIntervalRef.current)
+        clearInterval(directionIntervalRef.current);
+      if (idleMovementRef.current) clearTimeout(idleMovementRef.current);
 
       setTimeout(() => {
-        setLightnings((prev) => prev.filter((l) => l.id !== id));
-      }, 300);
+        setShowDeathDialog(true);
+      }, 1500);
+    } else {
+      setStrikeCount((prev) => prev + 1);
 
-      const hitboxSize = window.innerWidth > window.innerHeight ? 50 : 30;
-
-      if (
-        !isStrikeHarmlessRef.current &&
-        Math.abs(endX - stickmanPositionRef.current.x) < hitboxSize &&
-        !isDeadRef.current
-      ) {
-        playSound(deathAudioBufferRef.current, 1.0);
-        setIsDead(true);
-        setDisplaySheetInput(false);
-        setIsMoving(false);
-        setDirection("front");
-        setAutoMove(false);
-        if (directionIntervalRef.current)
-          clearInterval(directionIntervalRef.current);
-        if (idleMovementRef.current) clearTimeout(idleMovementRef.current);
-
-        setTimeout(() => {
-          setShowDeathDialog(true);
-        }, 1500);
+      if (endX < stickmanPositionRef.current.x) {
+        setDirection("right");
       } else {
-        setStrikeCount((prev) => prev + 1);
-
-        if (endX < stickmanPositionRef.current.x) {
-          setDirection("right");
-        } else {
-          setDirection("left");
-        }
-
-        setIsMoving(true);
-        setAutoMove(false);
-
-        if (idleMovementRef.current) clearTimeout(idleMovementRef.current);
-        if (directionIntervalRef.current)
-          clearInterval(directionIntervalRef.current);
-
-        idleMovementRef.current = setTimeout(() => {
-          if (!isDeadRef.current) {
-            setAutoMove(true);
-            setDirection(Math.random() > 0.5 ? "left" : "right");
-            setIsMoving(true);
-
-            directionIntervalRef.current = setInterval(() => {
-              setDirection((prev) =>
-                Math.random() > 0.5
-                  ? prev === "left"
-                    ? "right"
-                    : "left"
-                  : prev
-              );
-            }, 800 + Math.random() * 700);
-          }
-        }, 1000);
+        setDirection("left");
       }
+
+      setIsMoving(true);
+      setAutoMove(false);
+
+      if (idleMovementRef.current) clearTimeout(idleMovementRef.current);
+      if (directionIntervalRef.current)
+        clearInterval(directionIntervalRef.current);
+
+      idleMovementRef.current = setTimeout(() => {
+        if (!isDeadRef.current) {
+          setAutoMove(true);
+          setDirection(Math.random() > 0.5 ? "left" : "right");
+          setIsMoving(true);
+
+          directionIntervalRef.current = setInterval(() => {
+            setDirection((prev) =>
+              Math.random() > 0.5 ? (prev === "left" ? "right" : "left") : prev
+            );
+          }, 800 + Math.random() * 700);
+        }
+      }, 1000);
     }
   };
 
