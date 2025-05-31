@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, use } from "react";
 import Cloud from "@/app/components/cloud/cloud";
 import LightningEffect, {
   generateLightningPath,
@@ -34,6 +34,7 @@ export default function Home() {
   const [playerName, setPlayerName] = useState("");
   const [nameSubmitted, setNameSubmitted] = useState(false);
 
+  const [isStrikeHarmless, setIsStrikeHarmless] = useState(false);
   const [strikeCount, setStrikeCount] = useState(0);
   const [showDeathDialog, setShowDeathDialog] = useState(false);
 
@@ -44,34 +45,55 @@ export default function Home() {
   const [touchCount, setTouchCount] = useState(0);
   const [touchLimit, setTouchLimit] = useState(0);
 
-  const strikeSoundURLRef = useRef<string | null>(null);
-  const deathSoundURLRef = useRef<string | null>(null);
-  const ouchSoundURLRef = useRef<string | null>(null);
+  const [wrongNameClickCount, setWrongNameClickCount] = useState(0);
+  const [wrongNameClickLimit, setWrongNameClickLimit] = useState(0);
+
+  const lightStrikeSoundURLRef = useRef<AudioBuffer | null>(null);
+  const strikeSoundURLRef = useRef<AudioBuffer | null>(null);
+  const deathSoundURLRef = useRef<AudioBuffer | null>(null);
+  const ouchSoundURLRef = useRef<AudioBuffer | null>(null);
+  const sharedAudioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
-    const limit = Math.floor(Math.random() * 35) + 15; // Random number between 15-49
-    setTouchLimit(limit);
+    setTouchLimit(Math.floor(Math.random() * 35) + 15); // Random number between 15-49
+    setWrongNameClickLimit(Math.floor(Math.random() * 15) + 15); // Random number between 15-29
+
+    const audioContext = new (window.AudioContext ||
+      (window as any).webkitAudioContext)();
 
     const preloadSound = async (
       path: string,
-      ref: React.RefObject<string | null>
+      ref: React.RefObject<AudioBuffer | null>
     ) => {
       const response = await fetch(path);
-      const blob = await response.blob();
-      ref.current = URL.createObjectURL(blob);
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      ref.current = audioBuffer;
     };
 
+    preloadSound("./sfx/light_strike.mp3", lightStrikeSoundURLRef);
     preloadSound("./sfx/strike.mp3", strikeSoundURLRef);
     preloadSound("./sfx/death.mp3", deathSoundURLRef);
     preloadSound("./sfx/ouch.mp3", ouchSoundURLRef);
 
-    // Clean up blob URLs when component unmounts
+    sharedAudioContextRef.current = new (window.AudioContext ||
+      (window as any).webkitAudioContext)();
+
+    if (sharedAudioContextRef.current.state === "suspended") {
+      sharedAudioContextRef.current.resume();
+    }
+
+    const handleSpacebarPress = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      if (e.code === "Space" || e.key === " ") {
+        setIsStrikeHarmless((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleSpacebarPress);
+
     return () => {
-      if (strikeSoundURLRef.current)
-        URL.revokeObjectURL(strikeSoundURLRef.current);
-      if (deathSoundURLRef.current)
-        URL.revokeObjectURL(deathSoundURLRef.current);
-      if (ouchSoundURLRef.current) URL.revokeObjectURL(ouchSoundURLRef.current);
+      window.removeEventListener("keydown", handleSpacebarPress);
     };
   }, []);
 
@@ -82,12 +104,17 @@ export default function Home() {
       const nameElements = document.querySelectorAll("[data-player-name]");
       nameElements.forEach((el) => {
         const name = el.textContent
-          ?.toLowerCase()
+          ?.trim()
+          .toLowerCase()
+          .replace(/\s+/g, "")
           .normalize("NFD")
           .replace(/[\u0300-\u036f]/g, "");
-        if (name?.includes("quan")) {
-          el.textContent = "lil h4ck3r";
-          setPlayerName("lil h4ck3r");
+        if (
+          wrongNameClickCount < wrongNameClickLimit &&
+          name?.includes("quan")
+        ) {
+          el.textContent = "1i1 h4ck3r";
+          setPlayerName("1i1 h4ck3r");
         }
       });
     });
@@ -100,6 +127,100 @@ export default function Home() {
 
     return () => observer.disconnect();
   }, [nameSubmitted]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!nameSubmitted || isDead) return;
+      if (e.repeat) return; // ignore if holding key
+
+      if (sharedAudioContextRef.current?.state === "suspended") {
+        sharedAudioContextRef.current.resume();
+      }
+
+      const baseKeys = "zxcvbnm";
+      const index = baseKeys.indexOf(e.key.toLowerCase());
+      if (index !== -1) {
+        // Generate lightning on key press
+        const sectionWidth = window.innerWidth / baseKeys.length;
+        const startX = sectionWidth * index + sectionWidth / 2;
+        const startY = 0;
+        const endX = Math.random() * window.innerWidth;
+        const endY = window.innerHeight;
+        const path = generateLightningPath(startX, startY, endX, endY);
+        const id = lightningIdRef.current++;
+
+        const isSharp = e.shiftKey;
+        const offset = index * 2 - (index > 2 ? 1 : 0) + (isSharp ? 1 : 0);
+        playSound(lightStrikeSoundURLRef.current, 0.5, offset);
+
+        setLightnings((prev) => [...prev, { id, path }]);
+
+        setTimeout(() => {
+          setLightnings((prev) => prev.filter((l) => l.id !== id));
+        }, 300);
+
+        const hitboxSize = window.innerWidth > window.innerHeight ? 50 : 30;
+
+        if (
+          !isStrikeHarmless &&
+          Math.abs(endX - stickmanPosition.x) < hitboxSize &&
+          !isDead
+        ) {
+          playSound(deathSoundURLRef.current, 1.0);
+          setIsDead(true);
+          setIsMoving(false);
+          setDirection("front");
+          setAutoMove(false);
+          if (directionIntervalRef.current)
+            clearInterval(directionIntervalRef.current);
+          if (idleMovementRef.current) clearTimeout(idleMovementRef.current);
+
+          setTimeout(() => {
+            setShowDeathDialog(true);
+          }, 1500);
+        } else {
+          setStrikeCount((prev) => prev + 1);
+
+          if (endX < stickmanPosition.x) {
+            setDirection("right");
+          } else {
+            setDirection("left");
+          }
+
+          setIsMoving(true);
+          setAutoMove(false);
+
+          if (idleMovementRef.current) clearTimeout(idleMovementRef.current);
+          if (directionIntervalRef.current)
+            clearInterval(directionIntervalRef.current);
+
+          idleMovementRef.current = setTimeout(() => {
+            if (!isDead) {
+              setAutoMove(true);
+              setDirection(Math.random() > 0.5 ? "left" : "right");
+              setIsMoving(true);
+
+              directionIntervalRef.current = setInterval(() => {
+                setDirection((prev) =>
+                  Math.random() > 0.5
+                    ? prev === "left"
+                      ? "right"
+                      : "left"
+                    : prev
+                );
+              }, 800 + Math.random() * 700);
+            }
+          }, 1000);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [stickmanPosition, nameSubmitted, isDead]);
 
   // Movement loop
   useEffect(() => {
@@ -159,17 +280,33 @@ export default function Home() {
     };
   }, [isMoving, direction, autoMove, isDead]);
 
-  const playSound = (url: string | null, volume = 1.0) => {
-    if (!url) return;
-    const audio = new Audio(url);
-    audio.volume = volume;
-    audio.play();
+  const playSound = (
+    audioBuffer: AudioBuffer | null,
+    volume = 1.0,
+    semitoneOffset = 0
+  ) => {
+    if (!audioBuffer || !sharedAudioContextRef.current) return;
+
+    const source = sharedAudioContextRef.current.createBufferSource();
+    source.buffer = audioBuffer;
+
+    const gainNode = sharedAudioContextRef.current.createGain();
+    gainNode.gain.value = volume;
+
+    source.detune.value = semitoneOffset * 100;
+
+    source.connect(gainNode).connect(sharedAudioContextRef.current.destination);
+    source.start(0);
   };
 
   const handleCloudClick = (
     e: React.MouseEvent<SVGPathElement, MouseEvent>
   ) => {
     if (!nameSubmitted || isDead) return; // Don't allow gameplay until name is entered
+
+    if (sharedAudioContextRef.current?.state === "suspended") {
+      sharedAudioContextRef.current.resume();
+    }
 
     const startX = e.clientX;
     const startY = e.clientY;
@@ -190,7 +327,7 @@ export default function Home() {
       setLightnings((prev) => prev.filter((l) => l.id !== id));
     }, 300);
 
-    if (Math.abs(endX - stickmanPosition.x) < hitboxSize) {
+    if (!isStrikeHarmless && Math.abs(endX - stickmanPosition.x) < hitboxSize) {
       playSound(deathSoundURLRef.current, 1.0);
       setIsDead(true);
       setIsMoving(false);
@@ -243,9 +380,12 @@ export default function Home() {
   const handleRetry = () => {
     setIsDead(false);
     setShowDeathDialog(false);
+    setIsStrikeHarmless(false);
     setStrikeCount(0);
     setTouchCount(0);
     setTouchLimit(Math.floor(Math.random() * 35) + 15); // reset touch limit
+    setWrongNameClickCount(0);
+    setWrongNameClickLimit(Math.floor(Math.random() * 15) + 15); // reset wrong name click limit
     setStickmanPosition({ x: Math.floor(window.innerWidth / 2), y: 10 });
     setDirection("front");
     setNameSubmitted(false);
@@ -259,9 +399,12 @@ export default function Home() {
   const normalizedName = playerName
     .trim()
     .toLowerCase()
+    .replace(/\s+/g, "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
-  const isQuan = normalizedName.includes("quan");
+  const isQuan =
+    wrongNameClickCount < wrongNameClickLimit &&
+    normalizedName.includes("quan");
 
   return (
     <div
@@ -314,6 +457,11 @@ export default function Home() {
           <div style={{ position: "relative", display: "inline-block" }}>
             <button
               onClick={() => {
+                if (isQuan) {
+                  setWrongNameClickCount((prev) => prev + 1);
+                  return;
+                }
+
                 if (!playerName.trim()) {
                   setPlayerName("You");
                 } else {
@@ -325,7 +473,6 @@ export default function Home() {
                   y: 10,
                 });
               }}
-              disabled={isQuan}
               style={{
                 marginTop: "1rem",
                 padding: "0.5rem 1rem",
@@ -338,7 +485,11 @@ export default function Home() {
                 position: "relative",
               }}
             >
-              {isQuan ? "Wrong Name" : "Punish"}
+              {wrongNameClickCount >= wrongNameClickLimit
+                ? "( -_・)?"
+                : isQuan
+                ? "Wrong Name"
+                : "Punish"}
             </button>
           </div>
         </div>
@@ -347,7 +498,10 @@ export default function Home() {
       {nameSubmitted && (
         <>
           <Cloud onClick={handleCloudClick} animationDurationInMs={100} />
-          <LightningEffect lightnings={lightnings} />
+          <LightningEffect
+            lightnings={lightnings}
+            color={isStrikeHarmless ? "#C11C84" : "white"}
+          />
           <StickMan
             x={stickmanPosition.x}
             y={stickmanPosition.y}

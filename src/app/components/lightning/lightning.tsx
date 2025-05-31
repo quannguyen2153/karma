@@ -10,9 +10,13 @@ interface Lightning {
 
 interface LightningEffectProps {
   lightnings: Lightning[];
+  color: string;
 }
 
-export default function LightningEffect({ lightnings }: LightningEffectProps) {
+export default function LightningEffect({
+  lightnings,
+  color,
+}: LightningEffectProps) {
   return (
     <svg
       style={{
@@ -28,12 +32,12 @@ export default function LightningEffect({ lightnings }: LightningEffectProps) {
         <path
           key={lightning.id}
           d={lightning.path}
-          stroke="white"
+          stroke={color}
           strokeWidth="2"
           fill="none"
           strokeLinecap="round"
           style={{
-            filter: "drop-shadow(0 0 6px white)",
+            filter: `drop-shadow(0 0 6px ${color})`,
             animation: "fadeOut 0.3s ease-out forwards",
           }}
         />
