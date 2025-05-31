@@ -282,18 +282,18 @@ export default function Home() {
     for (let i = 0; i < sheet.length; i++) {
       if (controller.signal.aborted) break;
 
-      const char = sheet[i].toLowerCase();
+      const char = sheet[i];
       if (char === " ") {
         await new Promise((res) => setTimeout(res, delayMs));
         continue;
       }
 
-      const fakeEvent = {
-        key: char,
-        shiftKey: false,
+      const simulatedEvent = {
+        key: char.toLowerCase(),
+        shiftKey: char !== char.toLowerCase(),
       } as KeyboardEvent;
 
-      handleKeyDown(fakeEvent);
+      handleKeyDown(simulatedEvent);
       await new Promise((res) => setTimeout(res, delayMs));
     }
 
