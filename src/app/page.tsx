@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, use } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Cloud from "@/app/components/cloud/cloud";
 import LightningEffect, {
   generateLightningPath,
@@ -58,8 +58,9 @@ export default function Home() {
     setTouchLimit(Math.floor(Math.random() * 35) + 15); // Random number between 15-49
     setWrongNameClickLimit(Math.floor(Math.random() * 15) + 15); // Random number between 15-29
 
-    const audioContext = new (window.AudioContext ||
-      (window as any).webkitAudioContext)();
+    sharedAudioContextRef.current = new (window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext)();
 
     const preloadSound = async (
       path: string,
@@ -67,8 +68,10 @@ export default function Home() {
     ) => {
       const response = await fetch(path);
       const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-      ref.current = audioBuffer;
+      const audioBuffer = await sharedAudioContextRef.current?.decodeAudioData(
+        arrayBuffer
+      );
+      ref.current = audioBuffer ? audioBuffer : null;
     };
 
     preloadSound("./sfx/light_strike.mp3", lightStrikeSoundURLRef);
@@ -76,15 +79,14 @@ export default function Home() {
     preloadSound("./sfx/death.mp3", deathSoundURLRef);
     preloadSound("./sfx/ouch.mp3", ouchSoundURLRef);
 
-    sharedAudioContextRef.current = new (window.AudioContext ||
-      (window as any).webkitAudioContext)();
-
     if (sharedAudioContextRef.current.state === "suspended") {
       sharedAudioContextRef.current.resume();
     }
+  }, []);
 
+  useEffect(() => {
     const handleSpacebarPress = (e: KeyboardEvent) => {
-      if (e.repeat) return;
+      if (!nameSubmitted || e.repeat) return;
       if (e.code === "Space" || e.key === " ") {
         setIsStrikeHarmless((prev) => !prev);
       }
@@ -92,12 +94,6 @@ export default function Home() {
 
     window.addEventListener("keydown", handleSpacebarPress);
 
-    return () => {
-      window.removeEventListener("keydown", handleSpacebarPress);
-    };
-  }, []);
-
-  useEffect(() => {
     if (!nameSubmitted) return;
 
     const observer = new MutationObserver(() => {
@@ -125,7 +121,10 @@ export default function Home() {
       characterData: true,
     });
 
-    return () => observer.disconnect();
+    return () => {
+      window.removeEventListener("keydown", handleSpacebarPress);
+      observer.disconnect();
+    };
   }, [nameSubmitted]);
 
   useEffect(() => {
@@ -137,20 +136,47 @@ export default function Home() {
         sharedAudioContextRef.current.resume();
       }
 
-      const baseKeys = "zxcvbnm";
-      const index = baseKeys.indexOf(e.key.toLowerCase());
+      const topRow = "qwertyuiop";
+      const middleRow = "asdfghjkl";
+      const bottomRow = "zxcvbnm";
+
+      // Determine which row the key belongs to
+      let index = topRow.indexOf(e.key.toLowerCase());
+      let row = "top";
+
+      if (index === -1) {
+        index = middleRow.indexOf(e.key.toLowerCase());
+        if (index !== -1) {
+          row = "middle";
+        } else {
+          index = bottomRow.indexOf(e.key.toLowerCase());
+          if (index !== -1) row = "bottom";
+        }
+      }
+
       if (index !== -1) {
-        // Generate lightning on key press
+        const baseKeys =
+          row === "top" ? topRow : row === "middle" ? middleRow : bottomRow;
         const sectionWidth = window.innerWidth / baseKeys.length;
         const startX = sectionWidth * index + sectionWidth / 2;
-        const startY = 0;
+
+        // Set vertical position higher for top row
+        const startY =
+          window.innerHeight *
+          (row === "top" ? 0.02 : row === "middle" ? 0.035 : 0.05);
+
         const endX = Math.random() * window.innerWidth;
         const endY = window.innerHeight;
         const path = generateLightningPath(startX, startY, endX, endY);
         const id = lightningIdRef.current++;
 
         const isSharp = e.shiftKey;
-        const offset = index * 2 - (index > 2 ? 1 : 0) + (isSharp ? 1 : 0);
+
+        // Use base offsets to distinguish rows aurally
+        const rowOffset = row === "top" ? 16 : row === "middle" ? 7 : 0;
+        const offset =
+          rowOffset + index * 2 - (index > 2 ? 1 : 0) + (isSharp ? 1 : 0);
+
         playSound(lightStrikeSoundURLRef.current, 0.5, offset);
 
         setLightnings((prev) => [...prev, { id, path }]);
@@ -220,7 +246,7 @@ export default function Home() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [stickmanPosition, nameSubmitted, isDead]);
+  }, [stickmanPosition, nameSubmitted, isDead, isStrikeHarmless]);
 
   // Movement loop
   useEffect(() => {
